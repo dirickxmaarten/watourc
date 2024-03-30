@@ -58,6 +58,9 @@
 */
 
 #include <Arduino.h>
+#include <ServoInput.h>
+/*#include <PinChangeInterrupt.h>*/
+
 
 int LED = 13;						// sets LED to pin 13
 int DelayTime = 1500;				// sets delay time in 1/1000ths of a second
