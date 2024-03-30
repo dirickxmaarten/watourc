@@ -34,6 +34,29 @@
  * 
 */
 
+
+/**
+ * CODE OUTLINE
+ * ------------
+ * The best overall approach to reading PWM signals is using Interrupts.
+ * That is, stop the loop when receiving a signal and process it. Depending on 
+ * the microcontrollere, a number of pins are specifically designed to trigger
+ * interrupts on pin state change. In this setup, I am using an Arduino Nano.
+ * The atmega328 used on that board has 2 External Interrupt pins. These are the
+ * most reliable, but not the only way to interrupt the processor. In case more
+ * than 2 channels are required, a pin state change listener must be added to
+ * transform state changes into interrupts.
+ * 
+ * As both are quite common, robust libraries to do this already exists. 
+ * * For hardware intterupts this is ServoInput
+ *     https://github.com/dmadison/ServoInput
+ * * For software interrupts this is PinChangeInterrupt
+ *     https://github.com/NicoHood/PinChangeInterrupt
+ * 
+ * 
+ * 
+*/
+
 #include <Arduino.h>
 
 int LED = 13;						// sets LED to pin 13
