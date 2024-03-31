@@ -1,0 +1,3 @@
+[submodule "lib/DBH1-Controller"]
+	path = lib/DBH1-Controller
+	url = git@github.com:thevolget/DBH1-Controller.git

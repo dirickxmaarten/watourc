@@ -21,8 +21,9 @@
  * 
  * OUTPUT
  * ------
- * To be specified 
- * #TODO
+ * There are 2 different motors on our robot: throttle and steering. The first 
+ * is a forward-only setup. The second moves the head left to right. Throttle is
+ * controlled with a DBH-1A driver board. The steering is still to be decided.
  * 
  * FAILSAFE
  * --------
@@ -53,14 +54,26 @@
  * * For software interrupts this is PinChangeInterrupt
  *     https://github.com/NicoHood/PinChangeInterrupt
  * 
+ * The RC transceiver we will be using has 6 Channels. We only utilize two 
+ * channels at this point (forward/stop, and left/right). If more channels are
+ * needed, a different approach is required as well. We'd need to switch from
+ * hardware interrupt to software interrupt, and detecting software interrupts
+ * requires some finetuning. 
  * 
+ * The DBH-1A driver board used to control the motor has it's own library:
+ * *  https://github.com/thevolget/DBH1-Controller
  * 
+ * Using the ServoInput library for input and DBH1-Controller for output, all
+ * we need to do is write up a converter between the servo PWM and driving 
+ * (duty cyle) PWM.
 */
 
+/* including the required libraries.*/
 #include <Arduino.h>
 #include <ServoInput.h>
-/*#include <PinChangeInterrupt.h>*/
-
+// Not needed if there are enoug interrupt pins available
+//#include <PinChangeInterrupt.h>
+#include <DBH1.h>
 
 int LED = 13;						// sets LED to pin 13
 int DelayTime = 1500;				// sets delay time in 1/1000ths of a second
