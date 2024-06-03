@@ -24,7 +24,10 @@ Our motor driver board has a readout of the used power. This will be used to pro
 ### DIP switches
 Several DIP switches are present to select modes and other settings.
 These are:
-- DIP1: regular vs breathing mode
+- DIP1: Dry run - print motor pwm but don't enable.
+- DIP2: Sleep mode - regular vs breathing mode
+- DIP3: Camera mode - disable LEDs except error statuses
+- DIP4: Double voltage - toggle switch for parallel vs. series batteries
 
 ### Max speed potentiometer
 To limit max speed during testing, we added a 10k potentiometer. The readout of the signal limits the max speed.
@@ -45,7 +48,7 @@ The motor driver is controlled over PWM as well. The accepted frequency is betwe
 - Battery voltage 1: full charge (66% above min voltage)
 - Battery voltage 2: half charge (33% above min voltage)
 - Status LED: two functions shown by blink sequence
-	- low battery: slow blink, robot in Emergency mode
+	- low battery: slow blink, robot in Emergency modes
 	- Over-current: fast blink, robot in Emergency mode
 
 # Schematics
