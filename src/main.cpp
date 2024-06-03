@@ -64,9 +64,9 @@ const float RC_CENTER_DEADZONE_PERCENTAGE = 0.05; // 5% around center mapped to 
 
 /** PIN layout */
 // LEDs
-const int PIN_LED_BATT0 = 10;		// OK battery (ORANGE)
-const int PIN_LED_BATT1 = 11;		// Full battery (GREEN)
-const int PIN_LED_RC = 12;			// RC inverse connection status (RED)
+const int PIN_LED_BATT0 = 4;		// OK battery (ORANGE)
+const int PIN_LED_BATT1 = 5;		// Full battery (GREEN)
+const int PIN_LED_RC = 6;			// RC inverse connection status (RED)
 const int PIN_LED_STATUS = 13;		// Status LED = (internal) LED
 
 //DIP switches
@@ -78,10 +78,10 @@ const int PIN_DIP_DRY_RUN = 18;		// DIP1: Dry run (don't power the motor)
 // Motor Controller
 const int PIN_MOT_R_STATUS = A7;	// Current output and status
 const int PIN_MOT_L_STATUS = A6;	// Current output and status
-const int PIN_MOT_FOR_EN = 8;		// Forward enable pin
-const int PIN_MOT_REV_EN = 7;		// Reverse enable pin
-const int PIN_MOT_FOR_PWM = 6;		// Forward PWN signal pin (980 Hz)
-const int PIN_MOT_REV_PWM = 5;		// Reverse PWN signal pin (980 Hz)
+const int PIN_MOT_FOR_EN = 12;		// Forward enable pin
+const int PIN_MOT_REV_EN = 11;		// Reverse enable pin
+const int PIN_MOT_FOR_PWM = 10;		// Forward PWN signal pin (980 Hz)
+const int PIN_MOT_REV_PWM = 9;		// Reverse PWN signal pin (980 Hz)
 
 // Interrupts
 const int PIN_RC_PWM = 2;			// RC PWM signal
