@@ -44,7 +44,7 @@
 ServoInputPin<2> servo;
 
 void setup() {
-	Serial.begin(115200);
+	Serial.begin(9600);
 	servo.attach();  // attaches the servo input interrupt
 
 	int center = servo.getRangeCenter();  // get center value of range
@@ -73,4 +73,6 @@ void loop() {
 	sprintf(buffer, "Servo PWM (us) | Min: %4u  Val: %4u  Max: %4u | Range: %4u", 
 		servo.getRangeMin(), pulse, servo.getRangeMax(), servo.getRange());
 	Serial.println(buffer);
+
+
 }
