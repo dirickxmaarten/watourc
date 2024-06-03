@@ -85,7 +85,7 @@ const int PIN_MOT_REV_PWM = 5;		// Reverse PWN signal pin (980 Hz)
 
 // Interrupts
 const int PIN_RC_PWM = 2;			// RC PWM signal
-const int PIN_ROT_ENC = 3;			// RC PWM signal
+const int PIN_ROT_ENC = 3;			// Rotary encoder tick signal
 
 // OTHER
 const int PIN_BATT_VOLT = A0;		// Analog read battery voltage
