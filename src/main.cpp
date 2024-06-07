@@ -63,11 +63,12 @@ const float RC_CENTER_DEADZONE_PERCENTAGE = 0.05; // 5% around center mapped to 
 const float overcurrentThreshold = 4.0;	   // Example threshold in volts; 5V is 43A
 const int stallSpeedThreshold = 10;		   // Speed below which motor is considered stalled
 const int stallTimeThreshold = 2000;	   // Time in milliseconds motor must be stalled to trigger protection
-float rampRate = 1.0;					   // Rate of PWM change in speed per loop iteration (units per second)
+float rampRate = 10.0;					   // Rate of PWM change in speed per loop iteration (units per second)
 float Kp = 1.0, Ki = 0.5, Kd = 0.1;		   // PID tuning variables
 const unsigned long cooldownTime = 5000;   // Cooldown time in milliseconds
 const int maxRetries = 3;				   // Maximum number of recovery attempts
 const int slotsPerRevolution = 25;		   // Number of slots on the gated disk
+const boolean reverseMotor = false;		   // Reverse the motor pins if needed
 
 /** Constants */
 const boolean RECOVERABLE=true;
@@ -149,12 +150,14 @@ void rotationCount(){
 	slotCount++;
 }
 
-void STOP(boolean recoverable){
+void STOP(boolean recoverable, String reason){
     // Stop the motor
     digitalWrite(PIN_MOT_FOR_EN, 0);
     digitalWrite(PIN_MOT_REV_EN, 0);
     digitalWrite(PIN_MOT_FOR_PWM, 0);
     digitalWrite(PIN_MOT_REV_PWM, 0);
+
+	Serial.println(reason);
 
 	if (! recoverable){
 		// When maxRetries is exceeded, this is no longer a recoverable stop
@@ -163,6 +166,7 @@ void STOP(boolean recoverable){
 		// TODO: add an argument for the blink speed depending on stop reason
 		while (true) {
 			digitalWrite(PIN_LED_STATUS,!digitalRead(PIN_LED_STATUS));
+			Serial.println(reason);
 			delay(200);
 		}
 	}
@@ -191,6 +195,7 @@ float readMaxSpeedPercentage(){
 	// The value is stored in the global maxSpeedPercantage variable...
 	maxSpeedPercentage = analogRead(PIN_MAX_SPEED)/1023.0;
 	// ...as well as returned
+	return 1.0;
     return maxSpeedPercentage;
 }
 
@@ -347,6 +352,7 @@ void setup() {
 
 	// debug
 	Serial.println("setup complete, entering loop");
+	startMotor();
 }
 
 void loop() {
@@ -375,8 +381,10 @@ void loop() {
 
 	// Checks
 	// Check the battery
-	if(!BatteryCheck()){
-        STOP(UNRECOVERABLE);
+	if(!BatteryCheck() && !dryRun){
+		Serial.println("Battery Check");
+        STOP(UNRECOVERABLE, "Battery check failed");
+		
     }
 
     // Check if in recovery mode
@@ -388,7 +396,7 @@ void loop() {
             retryCount++;
             if (retryCount > maxRetries)
             {
-                STOP(UNRECOVERABLE); // infinite while
+                STOP(UNRECOVERABLE, "Recovery mode failed"); // infinite while
             }
             else
             {
@@ -400,7 +408,7 @@ void loop() {
 
 	// Read throttle input
     float throttleValue = readRCsignalPercent();
-    float desiredSpeed = map(throttleValue, 0, 100, 0, readMaxSpeedPercentage()*MAX_SPEED_RPM);
+    float desiredSpeed = throttleValue * readMaxSpeedPercentage() * MAX_SPEED_RPM;
 
     // Smoothly adjust the setpoint
     if (setpoint < desiredSpeed)
@@ -419,16 +427,16 @@ void loop() {
     currentSpeed = readCurrentSpeed(); // RPM
 
     // Check for overcurrent
-    float currentVoltage = readCurrentCurrent();
-    if (currentVoltage > overcurrentThreshold)
+    float currentAmp = readCurrentCurrent();
+    if (currentAmp > overcurrentThreshold)
     {
-        STOP(RECOVERABLE);
+        STOP(RECOVERABLE, "Over Current!");
         startRecovery();
         return;
     }
 
     // Check for stall condition
-    if (currentSpeed < stallSpeedThreshold)
+    if (currentSpeed < stallSpeedThreshold && setpoint > 0)
     {
         if (!isStalled)
         {
@@ -437,9 +445,11 @@ void loop() {
         }
         else if (millis() - stallStartTime > stallTimeThreshold)
         {
-            STOP(RECOVERABLE);
+			if(!dryRun){
+            STOP(RECOVERABLE, "Stall detected!");
             startRecovery();
             return;
+			}
         }
     }
     else
@@ -448,7 +458,11 @@ void loop() {
     }
 
     // PID Computation
-    double error = setpoint - currentSpeed;
+	double error = setpoint - currentSpeed;
+	if(dryRun){
+		error = 0;
+	}
+
     integral += error;
     double derivative = error - previousError;
     output = Kp * error + Ki * integral + Kd * derivative;
@@ -459,13 +473,43 @@ void loop() {
     if (output < 0)
         output = 0;
 
-    analogWrite(PIN_MOT_FOR_PWM, output); // Motor control via PWM
-
+	if (dryRun){
+		// Serial.println("PWM: " + (String)output);
+	} else {
+    	analogWrite(PIN_MOT_FOR_PWM, output); // Motor control via PWM
+	}
+	
     previousError = error;
 
     delay(10); // Loop delay to control the update rate
 	
-	// debug
+	//debug
+	Serial.print("Recovering: ");
+	Serial.print(isRecovering);
+	Serial.print("\t");
+	Serial.print("Stalled: ");
+	Serial.print(isStalled);
+	Serial.print("\t");
+	Serial.print("forward");
+	Serial.print(digitalRead(PIN_MOT_FOR_EN));
+	Serial.print("\t");
+	Serial.print("desired: ");
+	Serial.print(desiredSpeed);
+	Serial.print("\t");
+	Serial.print("sp: ");
+	Serial.print(setpoint);
+	Serial.print("\t");
+	Serial.print("Speed: ");
+	Serial.print(currentSpeed);
+	Serial.print("\t");
+	Serial.print("Amp");
+	Serial.print(currentAmp);
+	Serial.print("\t");
+	Serial.print("out");
+	Serial.print(output);
+	Serial.print("\t");
+	Serial.println();
+
 	// Serial.println("Throttle: " + (String)throttlePercent);
 	// Serial.println("Max Speed %: " + (String)maxSpeedPercentage);
 	// Serial.println(rotCount);
