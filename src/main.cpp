@@ -60,6 +60,18 @@ const float MIN_BATT_PERCENTAGE = 3.0/3.6; // cell min voltage divided by normal
 const float VOLT_DIV_FACTOR = 47/(4.7+47); // Voltage drop factor by R1 and R2
 const int ROT_ENC_SLOTS = 25;			   // Number of slots in the disk
 const float RC_CENTER_DEADZONE_PERCENTAGE = 0.05; // 5% around center mapped to 0
+const float overcurrentThreshold = 4.0;	   // Example threshold in volts; 5V is 43A
+const int stallSpeedThreshold = 10;		   // Speed below which motor is considered stalled
+const int stallTimeThreshold = 2000;	   // Time in milliseconds motor must be stalled to trigger protection
+float rampRate = 1.0;					   // Rate of PWM change in speed per loop iteration (units per second)
+float Kp = 1.0, Ki = 0.5, Kd = 0.1;		   // PID tuning variables
+const unsigned long cooldownTime = 5000;   // Cooldown time in milliseconds
+const int maxRetries = 3;				   // Maximum number of recovery attempts
+const int slotsPerRevolution = 25;		   // Number of slots on the gated disk
+
+/** Constants */
+const boolean RECOVERABLE=true;
+const boolean UNRECOVERABLE=false;
 
 
 /** PIN layout */
@@ -92,21 +104,33 @@ const int PIN_BATT_VOLT = A0;		// Analog read battery voltage
 const int PIN_MAX_SPEED = A5;		// Analog max speed potentiometer
 
 
+
+
 /*********************/
 /** Global variables */
 /*********************/
-volatile uint16_t rotCount = 0;
-volatile int rotTickTimestamp = 0;
-uint16_t prevRotCount = 0;
-int prevRotTickTimestamp = micros();
+// Rotary encoder
+volatile unsigned long slotCount = 0;
+unsigned long prevRotTimestamp = millis();
 
-float minBattVoltage = 0;
-float percentVoltage33 = 0;
-float percentVoltage66 = 0;
+// Battery
+float minBattVoltage, percentVoltage33, percentVoltage66;
 
-float targetSpeedPercentage = 0;
-float maxSpeedPercentage = 0;
-float targetSpeed = 0;
+// Speed variables
+float targetSpeedPercentage, maxSpeedPercentage, targetSpeed;
+
+// PID control variables
+float setpoint, currentSpeed, output;
+float integral = 0, previousError = 0;
+
+// Stall control variables
+unsigned long stallStartTime = 0;
+bool isStalled = false;
+
+// Overcurrent recovery parameters
+int retryCount = 0;
+bool isRecovering = false;
+unsigned long recoveryStartTime;
 
 // DIP switches setup
 bool doubleVoltage = false;
@@ -120,20 +144,29 @@ const int ThrottlePulseMin = 1000;  // microseconds (us)
 const int ThrottlePulseMax = 2000;  // Ideal values for your servo can be found with the "Calibration" environment
 ServoInputPin<PIN_RC_PWM> throttle(ThrottlePulseMin, ThrottlePulseMax);
 
-void STOP(){
+
+void rotationCount(){
+	slotCount++;
+}
+
+void STOP(boolean recoverable){
     // Stop the motor
     digitalWrite(PIN_MOT_FOR_EN, 0);
     digitalWrite(PIN_MOT_REV_EN, 0);
     digitalWrite(PIN_MOT_FOR_PWM, 0);
     digitalWrite(PIN_MOT_REV_PWM, 0);
 
-    // Send robot to an infinite loop of fast blinking status LED
-	// Press the Reset button to exit this state
-    // TODO: add an argument for the blink speed depending on stop reason
-    while(true){
-        digitalWrite(PIN_LED_STATUS,!digitalRead(PIN_LED_STATUS));
-        delay(200);
-    }
+	if (! recoverable){
+		// When maxRetries is exceeded, this is no longer a recoverable stop
+		// Send robot to an infinite loop of fast blinking status LED
+		// Press the Reset button to exit this state
+		// TODO: add an argument for the blink speed depending on stop reason
+		while (true) {
+			digitalWrite(PIN_LED_STATUS,!digitalRead(PIN_LED_STATUS));
+			delay(200);
+		}
+	}
+	
 
 }
 
@@ -152,7 +185,7 @@ void awaitRCSignal(){
 	digitalWrite(PIN_LED_RC, LOW);
 }
 
-float getMaxSpeedPercentage(){
+float readMaxSpeedPercentage(){
 	// Read the potentiometer with an analogRead. To turn it into a percentage,
 	// we divide the 0-1023 read signal by its max value: 1023.
 	// The value is stored in the global maxSpeedPercantage variable...
@@ -161,9 +194,58 @@ float getMaxSpeedPercentage(){
     return maxSpeedPercentage;
 }
 
-void rotationCount(){
-    rotCount++;
-    rotTickTimestamp = micros();
+float readRCsignalPercent(){
+	float throttlePercent = throttle.mapDeadzone(-100,100,
+	 											RC_CENTER_DEADZONE_PERCENTAGE)
+	 											/100.0;
+	if (throttlePercent < 0)
+	{
+		return 0.0;
+	}
+	return throttlePercent;
+}
+
+float readCurrentSpeed() {
+	// Calculate speed based on slot count
+	unsigned long currentTime = millis();
+	unsigned long currentSlotCount = slotCount;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        // code with interrupts blocked (consecutive atomic operations will not get interrupted)
+        slotCount = 0;
+    }
+	unsigned long timeElapsed = currentTime - prevRotTimestamp;
+
+	// Reset counters
+	prevRotTimestamp = currentTime;
+
+
+
+	// Calculate speed in slots per second
+	float speed = (currentSlotCount / (float)timeElapsed) * 1000;  // slots per second
+
+	// Convert speed to RPM
+	float rpm = (speed / slotsPerRevolution) * 60;  // RPM
+
+	return rpm;
+}
+
+float readCurrentCurrent(){
+	// TODO: set correct voltage divider
+	float currentCurrentL = analogRead(PIN_MOT_L_STATUS)/1023.0*5.0/VOLT_DIV_FACTOR;
+	float currentCurrentR = analogRead(PIN_MOT_R_STATUS)/1023.0*5.0/VOLT_DIV_FACTOR;
+	return currentCurrentL + currentCurrentR;
+}
+
+void startRecovery() {
+  isRecovering = true;
+  recoveryStartTime = millis();
+}
+
+void startMotor() {
+  // Reset PID control
+  integral = 0;
+  previousError = 0;
+  digitalWrite(PIN_MOT_FOR_EN, HIGH);
 }
 
 boolean BatteryCheck(){
@@ -183,11 +265,18 @@ boolean BatteryCheck(){
 	if(battVoltage<minBattVoltage){
 		return false;
 	}
-	// Set LEDs: bat0 if above 33% of the difference between max and min voltage
-	// batt1 LED if above 66% of difference
-	// We can use the implicit boolean to int conversion here
-	digitalWrite(PIN_LED_BATT0,battVoltage>percentVoltage33);
-	digitalWrite(PIN_LED_BATT1,battVoltage>percentVoltage66);
+
+	if (cameraMode){
+		digitalWrite(PIN_LED_BATT0,LOW);
+		digitalWrite(PIN_LED_BATT1,LOW);
+	} else {
+		// Set LEDs: bat0 if above 33% of the difference between max and min voltage
+		// batt1 LED if above 66% of difference
+		// We can use the implicit boolean to int conversion here
+		digitalWrite(PIN_LED_BATT0,battVoltage>percentVoltage33);
+		digitalWrite(PIN_LED_BATT1,battVoltage>percentVoltage66);
+	}
+
 	// Battery is OK!
 	return true;
 }
@@ -253,37 +342,133 @@ void setup() {
 	// Wait for RC signal
 	awaitRCSignal();
 
+	// Start slow
+	setpoint = 0.0;
+
 	// debug
 	Serial.println("setup complete, entering loop");
 }
 
-
-
 void loop() {
+	/************/
+	/* Approach */
+	/************
+	 *
+	 * 1) Don't listen to throttle, use a rampRate
+	 *    If throttle translates to a speed higher/lower than the current speed,
+	 *    in/decrease the speed by rampRate
+	 *
+	 * 2) If we exceed an Amperage above X for Y milliseconds, kill the engine
+	 *    Wait a fixed time to let things cool down and retry.
+	 *    Keep track of the retry count
+	 *
+	 * 3) Check for stalls based on the encoder.
+	 *    If things are going too slow for too long, kill the engine and retry
+	 *    Keep track of the retry count
+	 *    This requries some fine-tuning, which takes time that we don't have...
+	 *
+	 * 4) implement PID to achieve the calculated and ramped speed
+	 *
+	 */
+
+	unsigned long currentTime = millis();
+
+	// Checks
+	// Check the battery
 	if(!BatteryCheck()){
-        STOP();
+        STOP(UNRECOVERABLE);
     }
-	// Sensor readouts
-	float throttlePercent = throttle.mapDeadzone(-100,100,
-												RC_CENTER_DEADZONE_PERCENTAGE)
-												/100.0;
-	getMaxSpeedPercentage();
-	float newTargetSpeed = MAX_SPEED_RPM * maxSpeedPercentage * throttlePercent;
-	if(newTargetSpeed>0){
-		targetSpeed = newTargetSpeed;
-	} else {
-		targetSpeed = 0;
-	}
+
+    // Check if in recovery mode
+    if (isRecovering)
+    {
+        if (currentTime - recoveryStartTime >= cooldownTime)
+        {
+            isRecovering = false;
+            retryCount++;
+            if (retryCount > maxRetries)
+            {
+                STOP(UNRECOVERABLE); // infinite while
+            }
+            else
+            {
+                startMotor();
+            }
+        }
+        return;
+    }
+
+	// Read throttle input
+    float throttleValue = readRCsignalPercent();
+    float desiredSpeed = map(throttleValue, 0, 100, 0, readMaxSpeedPercentage()*MAX_SPEED_RPM);
+
+    // Smoothly adjust the setpoint
+    if (setpoint < desiredSpeed)
+    {
+        setpoint += rampRate; // Increase setpoint gradually
+        if (setpoint > desiredSpeed)
+            setpoint = desiredSpeed;
+    }
+    else if (setpoint > desiredSpeed)
+    {
+        setpoint -= rampRate; // Decrease setpoint gradually
+        if (setpoint < desiredSpeed)
+            setpoint = desiredSpeed;
+    }
+
+    currentSpeed = readCurrentSpeed(); // RPM
+
+    // Check for overcurrent
+    float currentVoltage = readCurrentCurrent();
+    if (currentVoltage > overcurrentThreshold)
+    {
+        STOP(RECOVERABLE);
+        startRecovery();
+        return;
+    }
+
+    // Check for stall condition
+    if (currentSpeed < stallSpeedThreshold)
+    {
+        if (!isStalled)
+        {
+            stallStartTime = millis();
+            isStalled = true;
+        }
+        else if (millis() - stallStartTime > stallTimeThreshold)
+        {
+            STOP(RECOVERABLE);
+            startRecovery();
+            return;
+        }
+    }
+    else
+    {
+        isStalled = false;
+    }
+
+    // PID Computation
+    double error = setpoint - currentSpeed;
+    integral += error;
+    double derivative = error - previousError;
+    output = Kp * error + Ki * integral + Kd * derivative;
+
+    // Limit the output to the motor's acceptable range
+    if (output > 255)
+        output = 255;
+    if (output < 0)
+        output = 0;
+
+    analogWrite(PIN_MOT_FOR_PWM, output); // Motor control via PWM
+
+    previousError = error;
+
+    delay(10); // Loop delay to control the update rate
 	
 	// debug
-	//Serial.println("Throttle: " + (String)throttlePercent);
+	// Serial.println("Throttle: " + (String)throttlePercent);
 	// Serial.println("Max Speed %: " + (String)maxSpeedPercentage);
 	// Serial.println(rotCount);
 	// Serial.println("targetSpeed: " + (String)targetSpeed + " MaxSpeedPercentage: " + (String)maxSpeedPercentage + " throttlePercentage: " + (String)throttlePercent);
 
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-        // code with interrupts blocked (consecutive atomic operations will not get interrupted)
-        prevRotCount = rotCount;
-        prevRotTickTimestamp = rotTickTimestamp;
-    }
 }
