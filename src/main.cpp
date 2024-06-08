@@ -353,7 +353,11 @@ void setup() {
 	// debug
 	Serial.println("setup complete, entering loop");
 	startMotor();
-}
+// void loop() {
+// 	int output = (int)(readRCsignalPercent()*255);
+// 	Serial.println(output);
+// 	analogWrite(PIN_MOT_FOR_PWM, output);
+// }
 
 void loop() {
 	/************/
