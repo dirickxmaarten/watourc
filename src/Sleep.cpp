@@ -6,8 +6,9 @@ int PWM_speed = 1;
 
 /** PIN SETUP */
 // Buttons
-const int PIN_BUT_L = 19; // Max Position switch Right
-const int PIN_BUT_R = 3;  // Max Position switch Left
+const int PIN_BUT_L = 19;        // Max Position switch Right
+const int PIN_BUT_R = 2;         // Max Position switch Left
+const int PIN_ROT_ENC = 3;		 // Rotary encoder tick signal
 
 // Motor Controller
 const int PIN_MOT_R_STATUS = A7; // Current output and status 1A = 27 -> 30
@@ -18,10 +19,10 @@ const int PIN_MOT_FOR_PWM = 10;  // Forward PWN signal pin (980 Hz)
 const int PIN_MOT_REV_PWM = 9;   // Reverse PWN signal pin (980 Hz)
 
 // LEDs
-const int PIN_LED_BATT0 = 4;   // OK battery (ORANGE)
-const int PIN_LED_BATT1 = 5;   // Full battery (GREEN)
-const int PIN_LED_RC = 6;      // RC inverse connection status (RED)
-const int PIN_LED_STATUS = 13; // Status LED = (internal) LED
+const int PIN_LED_BATT0 = 4;     // OK battery (ORANGE)
+const int PIN_LED_BATT1 = 5;     // Full battery (GREEN)
+const int PIN_LED_RC = 6;        // RC inverse connection status (RED)
+const int PIN_LED_STATUS = 13;   // Status LED = (internal) LED
 
 /** GLOBAL VARIABLES */
 bool reverse;
