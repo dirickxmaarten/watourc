@@ -156,10 +156,12 @@ void loop()
     if (reverse)
     {
         moveBackward();
+        Serial.println("Forward, count: " +(String)slotCount);
     }
     else
     {
         moveForward();
+        Serial.println("Backward, count: " +(String)slotCount);
     }
 
     delay(25);
