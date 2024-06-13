@@ -3,12 +3,14 @@
 
 /** CHANGEABLE PARAMETERS */
 int PWM_speed = 1;
+const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
+const int slotsToEmergency = 400;
 
 /** PIN SETUP */
 // Buttons
-const int PIN_BUT_L = 19;        // Max Position switch Right
-const int PIN_BUT_R = 2;         // Max Position switch Left
-const int PIN_ROT_ENC = 3;		 // Rotary encoder tick signal
+const int PIN_BUT_L = 19;  // Max Position switch Right
+const int PIN_BUT_R = 2;   // Max Position switch Left
+const int PIN_ROT_ENC = 3; // Rotary encoder tick signal
 
 // Motor Controller
 const int PIN_MOT_R_STATUS = A7; // Current output and status 1A = 27 -> 30
@@ -19,13 +21,14 @@ const int PIN_MOT_FOR_PWM = 10;  // Forward PWN signal pin (980 Hz)
 const int PIN_MOT_REV_PWM = 9;   // Reverse PWN signal pin (980 Hz)
 
 // LEDs
-const int PIN_LED_BATT0 = 4;     // OK battery (ORANGE)
-const int PIN_LED_BATT1 = 5;     // Full battery (GREEN)
-const int PIN_LED_RC = 6;        // RC inverse connection status (RED)
-const int PIN_LED_STATUS = 13;   // Status LED = (internal) LED
+const int PIN_LED_BATT0 = 4;   // OK battery (ORANGE)
+const int PIN_LED_BATT1 = 5;   // Full battery (GREEN)
+const int PIN_LED_RC = 6;      // RC inverse connection status (RED)
+const int PIN_LED_STATUS = 13; // Status LED = (internal) LED
 
 /** GLOBAL VARIABLES */
 bool reverse;
+volatile uint16_t slotCount;
 
 /** FUNCTIONS */
 // Move the motor forward by adjusting the PWM signal
@@ -46,7 +49,7 @@ void OverCurrentProtect()
 {
 }
 
-void STOP()
+void STOP(int blinkDelay)
 {
     // Stop the motor
     digitalWrite(PIN_MOT_FOR_EN, 0);
@@ -58,9 +61,15 @@ void STOP()
     {
         digitalWrite(PIN_LED_STATUS, !digitalRead(PIN_LED_STATUS));
         Serial.println("Over-current");
-        delay(200);
+        delay(blinkDelay);
     }
 }
+
+void rotationCount()
+{
+    slotCount++;
+}
+
 /** LOOP */
 void setup()
 {
@@ -86,7 +95,12 @@ void setup()
     pinMode(PIN_LED_RC, OUTPUT);
     pinMode(PIN_LED_STATUS, OUTPUT);
 
+    // RotEnc
+    pinMode(PIN_ROT_ENC, INPUT);
+    attachInterrupt(digitalPinToInterrupt(PIN_ROT_ENC), rotationCount, RISING);
+
     reverse = false;
+    slotCount = 0;
 }
 
 void loop()
@@ -97,9 +111,13 @@ void loop()
     // We stop at 15A => 15*33
     if (analogRead(PIN_MOT_L_STATUS) > (15 * 33))
     {
-        STOP();
+        STOP(200);
     }
 
+    if (slotCount > slotsToEmergency)
+    {
+        STOP(500);
+    }
     // Buttons
     // We're NOT working with interrupts
     // We just read the push button status during the loop
@@ -109,6 +127,11 @@ void loop()
     {
         reverse = false;
         digitalWrite(PIN_LED_BATT0, HIGH);
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+        {
+            // code with interrupts blocked (consecutive atomic operations will not get interrupted)
+            slotCount = 0;
+        }
     }
     else
     {
@@ -118,6 +141,11 @@ void loop()
     {
         reverse = true;
         digitalWrite(PIN_LED_BATT1, HIGH);
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+        {
+            // code with interrupts blocked (consecutive atomic operations will not get interrupted)
+            slotCount = 0;
+        }
     }
     else
     {
