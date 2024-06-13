@@ -2,7 +2,7 @@
 #include <util/atomic.h>
 
 /** CHANGEABLE PARAMETERS */
-int PWM_speed = 1;
+int PWM_speed = 100;
 const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
 const int slotsToEmergency = 400;
 
@@ -123,7 +123,7 @@ void loop()
     // We just read the push button status during the loop
     // No debouncing. Triggered once is enough.
     // First we check if buttons are pressed and set our direction accordingly
-    if (digitalRead(PIN_BUT_L))
+    if (!digitalRead(PIN_BUT_L))
     {
         reverse = false;
         digitalWrite(PIN_LED_BATT0, HIGH);
@@ -137,7 +137,7 @@ void loop()
     {
         digitalWrite(PIN_LED_BATT0, LOW);
     }
-    if (digitalRead(PIN_BUT_R))
+    if (!digitalRead(PIN_BUT_R))
     {
         reverse = true;
         digitalWrite(PIN_LED_BATT1, HIGH);
