@@ -2,9 +2,9 @@
 #include <util/atomic.h>
 
 /** CHANGEABLE PARAMETERS */
-int PWM_speed = 100;
+int PWM_speed = 255;
 const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
-const int slotsToEmergency = 400;
+const int slotsToEmergency = 220;
 
 /** PIN SETUP */
 // Buttons
@@ -39,11 +39,13 @@ void moveForward()
     // First set the other direction to low to stop the motor
     // only then we set a new PWM for the right direction
     analogWrite(PIN_MOT_REV_PWM, LOW);
+    delay(100);
     analogWrite(PIN_MOT_FOR_PWM, PWM_speed);
 }
 void moveBackward()
 {
     analogWrite(PIN_MOT_FOR_PWM, LOW);
+    delay(100);
     analogWrite(PIN_MOT_REV_PWM, PWM_speed);
 }
 
@@ -99,7 +101,7 @@ void setup()
     pinMode(PIN_ROT_ENC, INPUT);
     attachInterrupt(digitalPinToInterrupt(PIN_ROT_ENC), rotationCount, RISING);
 
-    reverse = false;
+    reverse = true;
     slotCount = 0;
 }
 
