@@ -29,6 +29,7 @@ const int PIN_LED_STATUS = 13; // Status LED = (internal) LED
 /** GLOBAL VARIABLES */
 bool reverse;
 volatile uint16_t slotCount;
+int currentAverage = 0;
 
 /** FUNCTIONS */
 // Move the motor forward by adjusting the PWM signal
@@ -45,11 +46,9 @@ void moveBackward()
     analogWrite(PIN_MOT_FOR_PWM, LOW);
     analogWrite(PIN_MOT_REV_PWM, PWM_speed);
 }
-void OverCurrentProtect()
-{
-}
 
-void STOP(int blinkDelay)
+
+void STOP(int blinkDelay, String reason)
 {
     // Stop the motor
     digitalWrite(PIN_MOT_FOR_EN, 0);
@@ -57,10 +56,11 @@ void STOP(int blinkDelay)
     digitalWrite(PIN_MOT_FOR_PWM, 0);
     digitalWrite(PIN_MOT_REV_PWM, 0);
 
+    Serial.println(reason);
+
     while (true)
     {
         digitalWrite(PIN_LED_STATUS, !digitalRead(PIN_LED_STATUS));
-        Serial.println("Over-current");
         delay(blinkDelay);
     }
 }
@@ -109,14 +109,16 @@ void loop()
     // Charger is rated at 10A
     // 1A corresponds to a analog read of '33'
     // We stop at 15A => 15*33
-    if (analogRead(PIN_MOT_L_STATUS) > (15 * 33))
+    int current = analogRead(PIN_MOT_L_STATUS);
+    currentAverage = (15*currentAverage + current)/16;
+    if (current > (15 * 33))
     {
-        STOP(200);
+        STOP(200, "over-current");
     }
 
     if (slotCount > slotsToEmergency)
     {
-        STOP(500);
+        STOP(500, "too many slots");
     }
     // Buttons
     // We're NOT working with interrupts
@@ -156,12 +158,12 @@ void loop()
     if (reverse)
     {
         moveBackward();
-        Serial.println("Forward, count: " +(String)slotCount);
+        Serial.println("Forward\tCurrent: " + (String)current + "\tAvg: "+(String)currentAverage + "\tcount: " +(String)slotCount);
     }
     else
     {
         moveForward();
-        Serial.println("Backward, count: " +(String)slotCount);
+        Serial.println("Backward\tCurrent: " + (String)current + "\tAvg: "+(String)currentAverage + "\tcount: " +(String)slotCount);
     }
 
     delay(25);
