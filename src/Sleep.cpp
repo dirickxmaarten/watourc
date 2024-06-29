@@ -5,8 +5,8 @@
 int PWM_speed = 255;
 const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
 const int slotsToEmergency = 220;
-//const int millisToStop = 20*60*1000; // 20 minutes
-const int millisToStop = 15*1000; // 20 minutes
+const int millisToStop = 5*60*1000; // 20 minutes
+//const int millisToStop = 15*1000; // 15 seconds
 
 /** PIN SETUP */
 // Buttons
@@ -58,16 +58,22 @@ void moveBackward()
 void pauseMotor()
 {
     // Stop the motor
-    digitalWrite(PIN_MOT_FOR_EN, 0);
-    digitalWrite(PIN_MOT_REV_EN, 0);
     digitalWrite(PIN_MOT_FOR_PWM, 0);
     digitalWrite(PIN_MOT_REV_PWM, 0);
+}
+
+void stopMotor()
+{
+    digitalWrite(PIN_MOT_REV_EN, 0);
+    digitalWrite(PIN_MOT_FOR_EN, 0);
+    pauseMotor();
+
 }
 
 void STOP(int blinkDelay, String reason)
 {
     // Stop the motor
-    pauseMotor();
+    stopMotor();
 
     Serial.println(reason);
 
@@ -114,7 +120,10 @@ void setup()
 
     // PIR sensor
     pinMode(PIN_PIR_SIG, INPUT);
-    delay(40000); // Wait 40 seconds to tune PIR sensor
+    for (int i = 0; i <= 40; i++) { // Wait 40 seconds to tune PIR sensor
+        delay(1000);
+        Serial.println("Tuning PIR sensor for 40 s: " + (String)i);
+    }
     reverse = true;
     slotCount = 0;
 }
@@ -177,6 +186,7 @@ void loop()
 
     if((millis() - lastMovement) > millisToStop){
         pauseMotor();
+        Serial.println("No motion detected");
         delay(25);
         return;
     }
