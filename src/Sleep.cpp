@@ -5,6 +5,8 @@
 int PWM_speed = 255;
 const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
 const int slotsToEmergency = 220;
+//const int millisToStop = 20*60*1000; // 20 minutes
+const int millisToStop = 15*1000; // 20 minutes
 
 /** PIN SETUP */
 // Buttons
@@ -26,10 +28,14 @@ const int PIN_LED_BATT1 = 5;   // Full battery (GREEN)
 const int PIN_LED_RC = 6;      // RC inverse connection status (RED)
 const int PIN_LED_STATUS = 13; // Status LED = (internal) LED
 
+// PIR sensor
+const int PIN_PIR_SIG = 7;
+
 /** GLOBAL VARIABLES */
 bool reverse;
 volatile uint16_t slotCount;
 int currentAverage = 0;
+unsigned long lastMovement = 0;
 
 /** FUNCTIONS */
 // Move the motor forward by adjusting the PWM signal
@@ -49,14 +55,19 @@ void moveBackward()
     analogWrite(PIN_MOT_REV_PWM, PWM_speed);
 }
 
-
-void STOP(int blinkDelay, String reason)
+void pauseMotor()
 {
     // Stop the motor
     digitalWrite(PIN_MOT_FOR_EN, 0);
     digitalWrite(PIN_MOT_REV_EN, 0);
     digitalWrite(PIN_MOT_FOR_PWM, 0);
     digitalWrite(PIN_MOT_REV_PWM, 0);
+}
+
+void STOP(int blinkDelay, String reason)
+{
+    // Stop the motor
+    pauseMotor();
 
     Serial.println(reason);
 
@@ -101,6 +112,9 @@ void setup()
     pinMode(PIN_ROT_ENC, INPUT);
     attachInterrupt(digitalPinToInterrupt(PIN_ROT_ENC), rotationCount, RISING);
 
+    // PIR sensor
+    pinMode(PIN_PIR_SIG, INPUT);
+    delay(40000); // Wait 40 seconds to tune PIR sensor
     reverse = true;
     slotCount = 0;
 }
@@ -156,7 +170,19 @@ void loop()
         digitalWrite(PIN_LED_BATT1, LOW);
     }
 
-    // Whent he button actions are set, we move the motor
+    // PIR sensor
+    if(digitalRead(PIN_PIR_SIG)){
+        lastMovement = millis();
+    }
+
+    if((millis() - lastMovement) > millisToStop){
+        pauseMotor();
+        delay(25);
+        return;
+    }
+    // implicit else: lastMovement was less than millisToStop ago.
+
+    // Now we can move the motor
     if (reverse)
     {
         moveBackward();
