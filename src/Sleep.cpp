@@ -5,8 +5,8 @@
 int PWM_speed = 255;
 const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
 const int slotsToEmergency = 220;
-const int millisToStop = 5*60*1000; // 20 minutes
-//const int millisToStop = 15*1000; // 15 seconds
+const unsigned long millisToStop = 300000; // 5 minutes
+//const unsigned long millisToStop = 80000; // 80 seconds
 
 /** PIN SETUP */
 // Buttons
@@ -35,7 +35,7 @@ const int PIN_PIR_SIG = 7;
 bool reverse;
 volatile uint16_t slotCount;
 int currentAverage = 0;
-unsigned long lastMovement = 0;
+unsigned long lastMovement;
 
 /** FUNCTIONS */
 // Move the motor forward by adjusting the PWM signal
@@ -93,7 +93,7 @@ void rotationCount()
 void setup()
 {
     Serial.begin(9600); // Set up serial communication to PC for debugging
-
+    Serial.println("MillisToStop: " + (String)millisToStop);
     // Motor Controller
     pinMode(PIN_MOT_FOR_PWM, OUTPUT);
     pinMode(PIN_MOT_REV_PWM, OUTPUT);
@@ -126,6 +126,7 @@ void setup()
     }
     reverse = true;
     slotCount = 0;
+    lastMovement = 0;
 }
 
 void loop()
@@ -183,7 +184,7 @@ void loop()
     if(digitalRead(PIN_PIR_SIG)){
         lastMovement = millis();
     }
-
+    
     if((millis() - lastMovement) > millisToStop){
         pauseMotor();
         Serial.println("No motion detected");
@@ -196,12 +197,12 @@ void loop()
     if (reverse)
     {
         moveBackward();
-        Serial.println("Forward\tCurrent: " + (String)current + "\tAvg: "+(String)currentAverage + "\tcount: " +(String)slotCount);
+        Serial.println("Forward\tCurrent: " + (String)current + "\tAvg: "+(String)currentAverage + "\tcount: " +(String)slotCount + "\tLM: " + (String)lastMovement + "\tmillis: " + (String)millis());
     }
     else
     {
         moveForward();
-        Serial.println("Backward\tCurrent: " + (String)current + "\tAvg: "+(String)currentAverage + "\tcount: " +(String)slotCount);
+        Serial.println("Backward\tCurrent: " + (String)current + "\tAvg: "+(String)currentAverage + "\tcount: " +(String)slotCount + "\tLM: " + (String)lastMovement + "\tmillis: " + (String)millis());
     }
 
     delay(25);
