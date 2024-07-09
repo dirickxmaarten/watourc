@@ -5,8 +5,8 @@
 int PWM_speed = 255;
 const int ROT_ENC_SLOTS = 25; // Number of slots in the disk
 const int slotsToEmergency = 220;
-const unsigned long millisToStop = 300000; // 5 minutes
-//const unsigned long millisToStop = 80000; // 80 seconds
+//const unsigned long millisToStop = 300000; // 5 minutes
+const unsigned long millisToStop = 15000; // 15 seconds
 
 /** PIN SETUP */
 // Buttons
